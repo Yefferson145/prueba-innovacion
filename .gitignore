@@ -1,0 +1,22 @@
+# Variables de entorno (nunca subir claves)
+backend/.env
+
+# Dependencias
+backend/node_modules/
+node_modules/
+
+# Archivos temporales de carga
+backend/uploads/
+
+# Respaldos de la base de datos (contienen datos clÃ­nicos)
+backend/backups/
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Base de datos local (contiene datos clínicos)
+backend/*.db
+*.db

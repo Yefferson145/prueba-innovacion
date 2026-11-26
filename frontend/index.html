@@ -1,0 +1,1909 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Sistema automatizado de admisión hospitalaria: digitalización de historias clínicas con IA.">
+  <title>Admisión Hospitalaria IA</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    /* ======================================================================
+       BASE
+       ====================================================================== */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --fondo: #eef2f7;
+      --panel: #ffffff;
+      --tinta: #0f172a;
+      --tinta-2: #334155;
+      --suave: #64748b;
+      --tenue: #94a3b8;
+      --borde: #e2e8f0;
+      --borde-fuerte: #cbd5e1;
+      --primario: #0f766e;
+      --primario-oscuro: #115e59;
+      --primario-suave: #ccfbf1;
+      --acento: #0369a1;
+      --exito: #15803d;
+      --exito-suave: #dcfce7;
+      --peligro: #b91c1c;
+      --peligro-suave: #fee2e2;
+      --aviso: #92400e;
+      --aviso-suave: #fef3c7;
+      --radio: 14px;
+    }
+
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(1100px 420px at 12% -8%, #e0f2fe 0%, rgba(224, 242, 254, 0) 60%),
+        radial-gradient(900px 420px at 100% 0%, #ccfbf1 0%, rgba(204, 251, 241, 0) 55%),
+        var(--fondo);
+      color: var(--tinta);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    button { font-family: inherit; }
+    :focus-visible { outline: 3px solid rgba(13, 148, 136, 0.35); outline-offset: 2px; }
+
+    .sr-solo {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+
+    .dato-vacio {
+      color: #94a3b8;
+      font-style: italic;
+      font-weight: 400;
+    }
+
+    /* ======================================================================
+       ENCABEZADO
+       ====================================================================== */
+    .encabezado {
+      background: linear-gradient(135deg, #115e59 0%, #0f766e 45%, #0e7490 100%);
+      color: #ecfeff;
+      padding: 20px 0;
+      box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.55);
+    }
+
+    .encabezado-interior {
+      max-width: 1180px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+    }
+
+    .marca { display: flex; align-items: center; gap: 14px; }
+
+    .marca-icono {
+      width: 46px; height: 46px; border-radius: 13px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      display: flex; align-items: center; justify-content: center;
+      flex: 0 0 auto;
+    }
+
+    .marca-texto h1 { font-size: 1.12rem; letter-spacing: 0.2px; font-weight: 700; }
+    .marca-texto p { margin-top: 3px; font-size: 0.8rem; color: #bae6fd; }
+
+    .estado-api {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.78rem; font-weight: 600;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 8px 14px; border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .estado-punto {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #fbbf24; flex: 0 0 auto;
+    }
+
+    .estado-api.conectado .estado-punto {
+      background: #4ade80;
+      box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.22);
+    }
+
+    .estado-api.desconectado .estado-punto {
+      background: #f87171;
+      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.22);
+    }
+
+    /* ======================================================================
+       LAYOUT
+       ====================================================================== */
+    .contenido {
+      max-width: 1180px; margin: 26px auto 64px; padding: 0 24px;
+      display: flex; flex-direction: column; gap: 22px;
+    }
+
+    .tarjeta {
+      background: var(--panel);
+      border: 1px solid var(--borde);
+      border-radius: var(--radio);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 18px 40px -34px rgba(15, 23, 42, 0.55);
+    }
+
+    /* ======================================================================
+       TARJETA DE CARGA
+       ====================================================================== */
+    .carga {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 310px minmax(0, 1fr);
+      gap: 26px;
+      align-items: center;
+    }
+
+    .carga-intro h2 { font-size: 1.05rem; margin-bottom: 8px; }
+    .carga-intro p { font-size: 0.86rem; line-height: 1.55; color: var(--suave); }
+
+    .carga-pasos {
+      margin: 14px 0 0; padding: 0; list-style: none;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+
+    .carga-pasos li {
+      display: flex; align-items: flex-start; gap: 9px;
+      font-size: 0.8rem; color: var(--suave); line-height: 1.4;
+    }
+
+    .carga-pasos .numero-paso {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--primario-suave); color: var(--primario-oscuro);
+      font-size: 0.68rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex: 0 0 auto; margin-top: 1px;
+    }
+
+    .panel-carga { display: flex; flex-direction: column; gap: 14px; }
+
+    .zona-carga {
+      border: 2px dashed #7dd3c7;
+      background: linear-gradient(180deg, #f0fdfa 0%, #ecfeff 100%);
+      border-radius: 12px;
+      padding: 22px;
+      display: flex; align-items: center; gap: 16px;
+      cursor: pointer;
+      transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+
+    .zona-carga:hover { border-color: var(--primario); background: #ccfbf1; }
+    .zona-carga.arrastrando { border-color: var(--primario); background: #ccfbf1; transform: scale(1.005); }
+
+    .zona-icono {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: #ffffff; border: 1px solid #99f6e4;
+      display: flex; align-items: center; justify-content: center;
+      flex: 0 0 auto; color: var(--primario);
+    }
+
+    .zona-texto strong { display: block; font-size: 0.92rem; margin-bottom: 3px; }
+    .zona-texto span { display: block; font-size: 0.79rem; color: var(--suave); }
+
+    .archivo-chip {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: #f8fafc; border: 1px solid var(--borde);
+      border-radius: 10px; padding: 10px 12px;
+      font-size: 0.83rem;
+    }
+
+    .archivo-chip[hidden] { display: none; }
+
+    .archivo-detalle { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .archivo-detalle strong {
+      display: block; font-weight: 600; font-size: 0.83rem;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px;
+    }
+    .archivo-detalle span { display: block; color: var(--tenue); font-size: 0.74rem; margin-top: 1px; }
+
+    .btn-quitar {
+      background: none; border: none; color: var(--suave);
+      font-size: 1.1rem; line-height: 1; cursor: pointer; padding: 4px 6px; border-radius: 6px;
+    }
+    .btn-quitar:hover { background: #e2e8f0; color: var(--peligro); }
+
+    .acciones-carga { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+    .btn {
+      border: none; border-radius: 10px; cursor: pointer;
+      font-weight: 600; font-size: 0.88rem;
+      padding: 11px 22px;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: background 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+    }
+
+    .btn-primario {
+      background: linear-gradient(135deg, #0f766e, #0e7490);
+      color: #ffffff;
+      box-shadow: 0 12px 22px -14px rgba(15, 118, 110, 0.85);
+    }
+    .btn-primario:hover:not(:disabled) { background: linear-gradient(135deg, #115e59, #075985); }
+    .btn-primario:active:not(:disabled) { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+
+    .btn-secundario {
+      background: #ffffff; color: var(--tinta-2);
+      border: 1px solid var(--borde-fuerte);
+    }
+    .btn-secundario:hover { background: #f8fafc; }
+
+    .nota-formatos { font-size: 0.75rem; color: var(--tenue); }
+
+    .barra-progreso {
+      height: 4px; background: #e2e8f0; border-radius: 999px; overflow: hidden;
+      display: none;
+    }
+    .barra-progreso.activa { display: block; }
+    .barra-progreso::after {
+      content: ""; display: block; height: 100%; width: 38%;
+      background: linear-gradient(90deg, #0d9488, #0ea5e9);
+      border-radius: 999px;
+      animation: deslizar 1.15s ease-in-out infinite;
+    }
+
+    @keyframes deslizar {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(320%); }
+    }
+
+    .alerta {
+      border-radius: 10px; padding: 11px 14px;
+      font-size: 0.83rem; line-height: 1.45;
+      display: none; border: 1px solid transparent;
+      word-break: break-word;
+    }
+    .alerta.visible { display: block; }
+    .alerta-exito { background: var(--exito-suave); border-color: #bbf7d0; color: #14532d; }
+    .alerta-error { background: var(--peligro-suave); border-color: #fecaca; color: #7f1d1d; }
+    .alerta-info { background: #e0f2fe; border-color: #bae6fd; color: #0c4a6e; }
+
+    /* ======================================================================
+       DIRECTORIO
+       ====================================================================== */
+    .directorio-cabecera {
+      padding: 20px 22px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 14px; flex-wrap: wrap;
+      border-bottom: 1px solid var(--borde);
+    }
+
+    .directorio-titulo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .directorio-titulo h2 { font-size: 1.02rem; }
+
+    .contador {
+      background: var(--primario-suave); color: var(--primario-oscuro);
+      border-radius: 999px; padding: 3px 10px;
+      font-size: 0.72rem; font-weight: 700;
+    }
+
+    .busqueda { position: relative; }
+    .busqueda svg {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--tenue); pointer-events: none;
+    }
+    .busqueda input {
+      width: 290px; max-width: 100%;
+      padding: 10px 12px 10px 37px;
+      border: 1px solid var(--borde-fuerte); border-radius: 10px;
+      background: #f8fafc; font-size: 0.86rem; color: var(--tinta);
+      transition: border-color 0.18s ease, background 0.18s ease;
+    }
+    .busqueda input:focus { background: #ffffff; border-color: #5eead4; outline: none; box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.25); }
+
+    .tabla-envoltura { overflow-x: auto; }
+
+    table.directorio { width: 100%; border-collapse: collapse; min-width: 720px; }
+
+    table.directorio th {
+      text-align: left; padding: 12px 22px;
+      background: #f8fafc; border-bottom: 1px solid var(--borde);
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.09em;
+      color: var(--suave); font-weight: 700; white-space: nowrap;
+    }
+
+    table.directorio td {
+      padding: 15px 22px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.88rem; vertical-align: middle;
+    }
+
+    table.directorio tbody tr { transition: background 0.15s ease; }
+    table.directorio tbody tr:hover { background: #f8fafc; }
+    table.directorio tbody tr:last-child td { border-bottom: none; }
+    table.directorio tbody tr.fila-nueva { animation: resaltar 2.6s ease; }
+
+    @keyframes resaltar {
+      0% { background: #ccfbf1; }
+      100% { background: transparent; }
+    }
+
+    .paciente { display: flex; align-items: center; gap: 12px; }
+
+    .avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, #ccfbf1, #e0f2fe);
+      color: #0f766e; font-weight: 700; font-size: 0.8rem;
+      display: flex; align-items: center; justify-content: center;
+      flex: 0 0 auto; border: 1px solid #e2e8f0;
+    }
+
+    .paciente-info { min-width: 0; }
+    .paciente-nombre {
+      display: block; font-weight: 600; color: var(--tinta);
+      line-height: 1.35; word-break: break-word;
+    }
+    .paciente-meta { display: block; margin-top: 3px; font-size: 0.76rem; color: var(--tenue); }
+
+    .chip {
+      display: inline-block; padding: 4px 10px; border-radius: 7px;
+      background: #f1f5f9; border: 1px solid var(--borde);
+      font-size: 0.78rem; font-weight: 600; color: var(--tinta-2);
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    .chip-vacio { background: #f8fafc; color: var(--tenue); font-weight: 500; font-style: italic; }
+
+    .badge {
+      display: inline-block; padding: 4px 10px; border-radius: 999px;
+      background: #e0f2fe; color: #075985;
+      font-size: 0.74rem; font-weight: 600; white-space: nowrap;
+    }
+    .badge-una { background: #f1f5f9; color: var(--suave); }
+
+    .fecha-celda { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+    .acciones-tabla { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .btn-accion {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 12px; border-radius: 8px;
+      font-size: 0.78rem; font-weight: 600;
+      border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-timeline { background: #f1f5f9; border-color: var(--borde-fuerte); color: var(--tinta-2); }
+    .btn-timeline:hover { background: #e2e8f0; }
+    .btn-expediente { background: #ecfdf5; border-color: #bbf7d0; color: #166534; }
+    .btn-expediente:hover { background: #dcfce7; }
+
+    .tabla-vacia {
+      text-align: center; padding: 46px 22px !important; color: var(--suave);
+    }
+    .tabla-vacia strong { display: block; color: var(--tinta-2); font-size: 0.95rem; margin-bottom: 6px; }
+    .tabla-vacia span { font-size: 0.83rem; }
+
+    /* ======================================================================
+       MODALES
+       ====================================================================== */
+    .modal {
+      position: fixed; inset: 0;
+      background: rgba(15, 23, 42, 0.58);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal.abierto { display: flex; }
+
+    .modal-caja {
+      background: #ffffff;
+      width: 100%; max-width: 760px;
+      max-height: 90vh;
+      border-radius: 16px;
+      box-shadow: 0 30px 70px -30px rgba(15, 23, 42, 0.7);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      animation: aparecer 0.18s ease;
+    }
+
+    @keyframes aparecer {
+      from { opacity: 0; transform: translateY(8px) scale(0.99); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .modal-cabecera {
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--borde);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+      background: #ffffff;
+    }
+
+    .modal-cabecera h2 { font-size: 1.02rem; line-height: 1.3; }
+    .modal-subtitulo { margin-top: 4px; font-size: 0.78rem; color: var(--tenue); }
+
+    .btn-cerrar {
+      background: #f1f5f9; border: 1px solid var(--borde);
+      width: 32px; height: 32px; border-radius: 9px;
+      color: var(--suave); font-size: 1rem; line-height: 1;
+      cursor: pointer; flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-cerrar:hover { background: #e2e8f0; color: var(--peligro); }
+
+    .modal-cuerpo { padding: 20px 22px 24px; overflow-y: auto; }
+
+    .fichas-paciente { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .ficha {
+      background: #f8fafc; border: 1px solid var(--borde);
+      border-radius: 8px; padding: 6px 11px;
+      font-size: 0.76rem; color: var(--suave);
+    }
+    .ficha strong { color: var(--tinta-2); font-weight: 600; }
+
+    body.sin-scroll { overflow: hidden; }
+
+    /* ======================================================================
+       TIMELINE
+       ====================================================================== */
+    .timeline { position: relative; padding-left: 26px; }
+
+    .timeline::before {
+      content: ""; position: absolute; left: 7px; top: 6px; bottom: 6px;
+      width: 2px; background: linear-gradient(180deg, #5eead4, #bae6fd);
+      border-radius: 999px;
+    }
+
+    .tl-item { position: relative; margin-bottom: 16px; }
+    .tl-item:last-child { margin-bottom: 0; }
+
+    .tl-marcador {
+      position: absolute; left: -25px; top: 18px;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #ffffff; border: 3px solid #0d9488;
+      box-shadow: 0 0 0 3px #f0fdfa;
+    }
+    .tl-item:first-child .tl-marcador { border-color: #0ea5e9; }
+
+    .tl-contenido {
+      background: #f8fafc;
+      border: 1px solid var(--borde);
+      border-radius: 11px;
+      padding: 14px 16px;
+    }
+
+    .tl-cabecera {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding-bottom: 9px; margin-bottom: 9px;
+      border-bottom: 1px dashed #dbe3ec;
+    }
+
+    .tl-fecha { font-size: 0.86rem; font-weight: 700; color: var(--tinta); }
+    .tl-numero {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em;
+      background: #e0f2fe; color: #075985;
+      padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
+    }
+    .tl-medico { margin-left: auto; font-size: 0.75rem; color: var(--suave); }
+
+    .tl-diagnostico { font-size: 0.9rem; font-weight: 600; color: #0f172a; line-height: 1.45; margin-bottom: 5px; }
+    .tl-motivo { font-size: 0.82rem; color: var(--tinta-2); line-height: 1.5; }
+    .tl-etiqueta { color: var(--tenue); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 5px; }
+
+    .tl-detalle { margin-top: 10px; border-top: 1px solid #e8eef5; padding-top: 8px; }
+    .tl-detalle summary {
+      cursor: pointer; font-size: 0.77rem; font-weight: 600; color: var(--acento);
+      list-style: none; padding: 3px 0;
+    }
+    .tl-detalle summary::-webkit-details-marker { display: none; }
+    .tl-detalle summary::before { content: "▸ "; }
+    .tl-detalle[open] summary::before { content: "▾ "; }
+    .tl-detalle summary:hover { text-decoration: underline; }
+
+    .detalle-lista { margin: 10px 0 0; display: flex; flex-direction: column; gap: 9px; }
+    .detalle-fila { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 10px; }
+    .detalle-fila dt { font-size: 0.74rem; font-weight: 700; color: var(--suave); text-transform: uppercase; letter-spacing: 0.04em; padding-top: 1px; }
+    .detalle-fila dd { margin: 0; font-size: 0.82rem; line-height: 1.5; color: var(--tinta-2); word-break: break-word; }
+
+    /* ======================================================================
+       MODAL REPORTE + DOCUMENTO (PDF)
+       ====================================================================== */
+    .modal-caja.reporte { max-width: 990px; max-height: 94vh; }
+
+    .reporte-barra {
+      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      background: #ffffff; border-bottom: 1px solid var(--borde); flex-wrap: wrap;
+    }
+
+    .reporte-barra-info { min-width: 0; }
+    .reporte-barra-info strong { display: block; font-size: 0.88rem; }
+    .reporte-barra-info span { display: block; font-size: 0.75rem; color: var(--tenue); margin-top: 2px; }
+
+    .reporte-acciones { display: flex; align-items: center; gap: 9px; }
+    .aviso-reporte { font-size: 0.78rem; color: var(--peligro); }
+
+    .reporte-scroll {
+      overflow: auto; padding: 24px; background: #e2e8f0;
+    }
+
+    /* ---- Hoja del expediente ---- */
+    .documento-papel {
+      background: #ffffff;
+      width: 100%; max-width: 820px; margin: 0 auto;
+      padding: 34px 38px 30px;
+      color: #111827;
+      font-family: "Times New Roman", Times, Georgia, serif;
+      font-size: 12.5px; line-height: 1.5;
+      box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.5);
+    }
+
+    .pdf-cabecera {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 18px; padding-bottom: 12px;
+      border-bottom: 2.5px solid #0f172a;
+    }
+
+    .pdf-marca { display: flex; align-items: center; gap: 10px; }
+
+    .pdf-simbolo {
+      width: 34px; height: 34px; border-radius: 6px;
+      background: #0f766e; color: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 24px; font-weight: 700; line-height: 34px; text-align: center;
+      flex: 0 0 auto;
+    }
+
+    .pdf-institucion {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; color: #0f172a;
+    }
+    .pdf-servicio {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8.5px; color: #475569; margin-top: 2px;
+    }
+
+    .pdf-folio {
+      text-align: right; border: 1px solid #cbd5e1; border-radius: 5px;
+      padding: 5px 10px; min-width: 150px;
+    }
+    .pdf-folio-label {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 7.5px; letter-spacing: 0.1em; color: #64748b; text-transform: uppercase;
+    }
+    .pdf-folio-valor {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5px; font-weight: 700; color: #0f172a; margin-top: 1px;
+    }
+
+    .pdf-titulo {
+      text-align: center; padding: 14px 0 4px;
+    }
+    .pdf-titulo h1 {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 17px; letter-spacing: 0.06em; color: #0f172a;
+    }
+    .pdf-titulo p {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9px; color: #64748b; margin-top: 4px;
+    }
+
+    .pdf-seccion {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase; color: #0f172a;
+      background: #f1f5f9; border-left: 3px solid #0f766e;
+      padding: 5px 9px; margin: 16px 0 9px;
+    }
+
+    .pdf-filiacion {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+
+    .pdf-dato {
+      flex: 1 1 30%; min-width: 150px;
+      border: 1px solid #e2e8f0; border-radius: 4px;
+      padding: 6px 9px;
+    }
+    .pdf-dato--ancho { flex: 1 1 100%; }
+
+    .pdf-etiqueta {
+      display: block;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 7.5px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: #64748b; margin-bottom: 2px;
+    }
+    .pdf-valor {
+      display: block; font-size: 12px; font-weight: 700; color: #0f172a;
+      word-break: break-word;
+    }
+
+    .pdf-resumen { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pdf-resumen-caja {
+      flex: 1 1 30%; min-width: 140px;
+      border: 1px solid #e2e8f0; border-top: 3px solid #0f766e;
+      border-radius: 4px; padding: 7px 10px; background: #f8fafc;
+    }
+    .pdf-resumen-label {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 7.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b;
+    }
+    .pdf-resumen-valor {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12.5px; font-weight: 700; color: #0f172a; margin-top: 2px;
+    }
+
+    .pdf-visita {
+      border: 1px solid #cbd5e1; border-radius: 5px;
+      margin-bottom: 11px; overflow: hidden;
+      break-inside: avoid; page-break-inside: avoid;
+    }
+
+    .pdf-visita-cabecera {
+      background: #0f172a; color: #ffffff;
+      padding: 6px 10px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .pdf-visita-titulo { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; }
+    .pdf-visita-meta { font-size: 8.5px; color: #e2e8f0; }
+
+    .pdf-campos { padding: 7px 10px 9px; }
+
+    .pdf-campo {
+      display: flex; gap: 10px;
+      padding: 5px 0; border-bottom: 1px dotted #e2e8f0;
+      break-inside: avoid; page-break-inside: avoid;
+    }
+    .pdf-campo:last-child { border-bottom: none; }
+    .pdf-campo-etiqueta {
+      flex: 0 0 132px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      color: #475569; padding-top: 2px;
+    }
+    .pdf-campo-valor {
+      flex: 1 1 auto; min-width: 0;
+      font-size: 11.5px; line-height: 1.45; color: #111827;
+      white-space: pre-wrap; word-break: break-word;
+    }
+
+    .pdf-validacion { break-inside: avoid; page-break-inside: avoid; }
+    .pdf-nota {
+      font-size: 10px; color: #475569; line-height: 1.5;
+      text-align: justify; border-left: 2px solid #cbd5e1; padding-left: 9px;
+    }
+
+    .pdf-firma {
+      margin-top: 26px; margin-left: auto; width: 250px; text-align: center;
+      break-inside: avoid; page-break-inside: avoid;
+    }
+    .pdf-firma-linea { border-top: 1px solid #0f172a; margin-bottom: 5px; }
+    .pdf-firma-titulo {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b;
+    }
+    .pdf-firma-nombre { font-size: 11.5px; font-weight: 700; color: #0f172a; margin-top: 2px; }
+    .pdf-firma-sello {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8px; color: #94a3b8; margin-top: 2px;
+    }
+
+    .pdf-pie {
+      margin-top: 18px; padding-top: 7px; border-top: 1px solid #cbd5e1;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 7.5px; color: #64748b;
+    }
+
+    .documento-papel .dato-vacio { color: #94a3b8; }
+
+    /* Contenedor temporal usado para exportar sin depender del scroll del modal */
+    .pdf-holder {
+      position: fixed; top: 0; left: -10000px;
+      width: 780px; background: #ffffff; z-index: -1;
+    }
+
+    .pdf-holder .documento-papel {
+      max-width: none; width: 100%; box-shadow: none; margin: 0;
+    }
+
+    /* ======================================================================
+       RESPONSIVE
+       ====================================================================== */
+    @media (max-width: 900px) {
+      .carga { grid-template-columns: 1fr; gap: 18px; }
+      .archivo-detalle strong { max-width: 230px; }
+    }
+
+    @media (max-width: 640px) {
+      .contenido { padding: 0 14px; margin-top: 18px; }
+      .encabezado-interior { padding: 0 16px; }
+      .carga { padding: 18px; }
+      .directorio-cabecera { padding: 16px; }
+      .busqueda input { width: 100%; }
+      .busqueda { width: 100%; }
+      table.directorio th, table.directorio td { padding-left: 16px; padding-right: 16px; }
+      .modal { padding: 0; }
+      .modal-caja { max-height: 100vh; height: 100%; border-radius: 0; }
+      .reporte-scroll { padding: 12px; }
+      .documento-papel { padding: 22px 18px; }
+      .detalle-fila { grid-template-columns: 1fr; gap: 2px; }
+      .pdf-campo { flex-direction: column; gap: 1px; }
+      .pdf-campo-etiqueta { flex: none; }
+      .tl-medico { margin-left: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="encabezado">
+    <div class="encabezado-interior">
+      <div class="marca">
+        <div class="marca-icono" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ecfeff" stroke-width="2" stroke-linecap="round">
+            <path d="M12 5v14M5 12h14"></path>
+          </svg>
+        </div>
+        <div class="marca-texto">
+          <h1>Admisión Hospitalaria IA</h1>
+          <p>Digitalización de historias clínicas · MINSA / EsSalud</p>
+        </div>
+      </div>
+      <div class="estado-api" id="estadoApi" title="Estado de conexión con el servidor">
+        <span class="estado-punto" aria-hidden="true"></span>
+        <span id="estadoApiTexto">Verificando conexión…</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="contenido">
+
+    <!-- ================= CARGA DE DOCUMENTOS ================= -->
+    <section class="tarjeta carga" aria-labelledby="tituloCarga">
+      <div class="carga-intro">
+        <h2 id="tituloCarga">Digitalizar historia clínica</h2>
+        <p>Sube el formato escaneado o fotografiado. La IA extrae los datos clínicos y los incorpora automáticamente al expediente del paciente.</p>
+        <ol class="carga-pasos">
+          <li><span class="numero-paso">1</span><span>Selecciona el PDF o la imagen del formato.</span></li>
+          <li><span class="numero-paso">2</span><span>La IA lee casillas, secciones y texto manuscrito.</span></li>
+          <li><span class="numero-paso">3</span><span>Los datos se guardan y agrupan por paciente.</span></li>
+        </ol>
+      </div>
+
+      <div class="panel-carga">
+        <div class="zona-carga" id="zonaCarga" role="button" tabindex="0"
+             aria-label="Seleccionar o arrastrar un documento clínico">
+          <div class="zona-icono" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <path d="M14 2v6h6"></path>
+              <path d="M12 18v-6"></path>
+              <path d="M9 15l3-3 3 3"></path>
+            </svg>
+          </div>
+          <div class="zona-texto">
+            <strong>Arrastra el documento aquí</strong>
+            <span>o haz clic para seleccionarlo · PDF, JPG, PNG o WEBP (máx. 25 MB)</span>
+          </div>
+          <input type="file" id="pdfFile" class="sr-solo" accept="application/pdf,image/jpeg,image/png,image/webp">
+        </div>
+
+        <div class="archivo-chip" id="archivoChip" hidden>
+          <div class="archivo-detalle">
+            <div class="avatar" style="width:32px;height:32px;border-radius:8px;font-size:0.65rem;" aria-hidden="true">PDF</div>
+            <div style="min-width:0;">
+              <strong id="archivoNombre"></strong>
+              <span id="archivoTamano"></span>
+            </div>
+          </div>
+          <button type="button" class="btn-quitar" id="btnQuitarArchivo" aria-label="Quitar archivo seleccionado">✕</button>
+        </div>
+
+        <div class="barra-progreso" id="barraProgreso" aria-hidden="true"></div>
+
+        <div class="acciones-carga">
+          <button type="button" class="btn btn-primario" id="btnProcesar" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path>
+              <path d="M18 15l.8 2.2 2.2.8-2.2.8L18 21l-.8-2.2-2.2-.8 2.2-.8z"></path>
+            </svg>
+            <span id="btnProcesarTexto">Procesar documento</span>
+          </button>
+          <span class="nota-formatos" id="notaFormatos">Formatos MINSA y EsSalud · Una atención por archivo</span>
+        </div>
+
+        <div class="alerta" id="estado" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- ================= DIRECTORIO ================= -->
+    <section class="tarjeta" aria-labelledby="tituloDirectorio">
+      <div class="directorio-cabecera">
+        <div class="directorio-titulo">
+          <h2 id="tituloDirectorio">Directorio de pacientes</h2>
+          <span class="contador" id="contadorPacientes">0 pacientes</span>
+        </div>
+        <div class="busqueda">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="M20 20l-3.5-3.5"></path>
+          </svg>
+          <label class="sr-solo" for="buscador">Buscar paciente por nombre o documento</label>
+          <input type="search" id="buscador" placeholder="Buscar por nombre o documento…" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="tabla-envoltura">
+        <table class="directorio">
+          <thead>
+            <tr>
+              <th scope="col">Paciente</th>
+              <th scope="col">DNI / Historia</th>
+              <th scope="col">Última atención</th>
+              <th scope="col">Atenciones</th>
+              <th scope="col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaCuerpo"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= MODAL: TIMELINE ================= -->
+  <div class="modal" id="modalHistorial" role="dialog" aria-modal="true" aria-labelledby="timelineNombre">
+    <div class="modal-caja">
+      <div class="modal-cabecera">
+        <div>
+          <h2 id="timelineNombre">Historial del paciente</h2>
+          <p class="modal-subtitulo" id="timelineSubtitulo">Registro cronológico de atenciones</p>
+        </div>
+        <button type="button" class="btn-cerrar" data-cerrar="modalHistorial" aria-label="Cerrar historial">✕</button>
+      </div>
+      <div class="modal-cuerpo">
+        <div class="fichas-paciente" id="timelineFichas"></div>
+        <div class="timeline" id="timelineContenedor"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EXPEDIENTE / PDF ================= -->
+  <div class="modal" id="modalReporte" role="dialog" aria-modal="true" aria-labelledby="reporteBarraNombre">
+    <div class="modal-caja reporte">
+      <div class="reporte-barra">
+        <div class="reporte-barra-info">
+          <strong id="reporteBarraNombre">Expediente clínico</strong>
+          <span id="reporteBarraMeta">Historia clínica unificada</span>
+        </div>
+        <div class="reporte-acciones">
+          <span class="aviso-reporte" id="avisoReporte" role="status" aria-live="polite"></span>
+          <button type="button" class="btn btn-primario" id="btnExportar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12"></path>
+              <path d="M7 10l5 5 5-5"></path>
+              <path d="M5 21h14"></path>
+            </svg>
+            <span id="btnExportarTexto">Exportar PDF</span>
+          </button>
+          <button type="button" class="btn btn-secundario" data-cerrar="modalReporte">Cerrar</button>
+        </div>
+      </div>
+
+      <div class="reporte-scroll">
+        <article class="documento-papel" id="documentoImprimible">
+          <header class="pdf-cabecera">
+            <div class="pdf-marca">
+              <div class="pdf-simbolo" aria-hidden="true">+</div>
+              <div>
+                <p class="pdf-institucion">SISTEMA DE ADMISIÓN HOSPITALARIA</p>
+                <p class="pdf-servicio">Unidad de Admisión y Registros Médicos</p>
+              </div>
+            </div>
+            <div class="pdf-folio">
+              <p class="pdf-folio-label">Expediente</p>
+              <p class="pdf-folio-valor" id="pdfCodigo">—</p>
+            </div>
+          </header>
+
+          <div class="pdf-titulo">
+            <h1>HISTORIA CLÍNICA UNIFICADA</h1>
+            <p>Reporte consolidado de atenciones médicas registradas</p>
+          </div>
+
+          <h2 class="pdf-seccion">I. Datos de filiación del paciente</h2>
+          <div class="pdf-filiacion">
+            <div class="pdf-dato pdf-dato--ancho">
+              <span class="pdf-etiqueta">Nombre completo</span>
+              <span class="pdf-valor" id="pdfNombre"></span>
+            </div>
+            <div class="pdf-dato">
+              <span class="pdf-etiqueta">Documento / Historia clínica</span>
+              <span class="pdf-valor" id="pdfDni"></span>
+            </div>
+            <div class="pdf-dato">
+              <span class="pdf-etiqueta">Edad</span>
+              <span class="pdf-valor" id="pdfEdad"></span>
+            </div>
+            <div class="pdf-dato">
+              <span class="pdf-etiqueta">Sexo</span>
+              <span class="pdf-valor" id="pdfSexo"></span>
+            </div>
+          </div>
+
+          <h2 class="pdf-seccion">II. Resumen del expediente</h2>
+          <div class="pdf-resumen" id="pdfResumen"></div>
+
+          <h2 class="pdf-seccion">III. Registro cronológico de atenciones</h2>
+          <div id="pdfVisitasContenedor"></div>
+
+          <section class="pdf-validacion">
+            <h2 class="pdf-seccion">IV. Observaciones y validación</h2>
+            <p class="pdf-nota">
+              Documento generado automáticamente a partir de formatos clínicos digitalizados mediante
+              inteligencia artificial. Los campos sin información legible se consignan como
+              «No registrado». Este reporte es de apoyo administrativo y debe contrastarse con la
+              historia clínica física y el criterio del profesional de salud responsable.
+            </p>
+            <div class="pdf-firma">
+              <div class="pdf-firma-linea"></div>
+              <p class="pdf-firma-titulo">Médico responsable</p>
+              <p class="pdf-firma-nombre" id="pdfMedicoFirma">No registrado</p>
+              <p class="pdf-firma-sello">Firma y sello</p>
+            </div>
+          </section>
+
+          <footer class="pdf-pie">
+            <span id="pdfPieEmision"></span>
+            <span>Documento confidencial · Uso clínico</span>
+          </footer>
+        </article>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ====================================================================
+       CONFIGURACIÓN Y ESTADO
+       ==================================================================== */
+    const API_URL = window.location.protocol === 'file:'
+      ? 'http://localhost:3000/api'
+      : '/api';
+
+    const NO_REGISTRADO = 'No registrado';
+    const TAMANO_MAXIMO = 25 * 1024 * 1024;
+    const CAMPOS_CLINICOS = [
+      'nombre', 'documento', 'fecha_ingreso', 'edad', 'sexo',
+      'motivo_consulta', 'enfermedad_actual', 'signos_vitales',
+      'diagnostico', 'plan_tratamiento', 'medico'
+    ];
+
+    let pacientes = [];
+    let grupos = [];
+    let grupoActual = null;
+    let archivoSeleccionado = null;
+    let filtroActual = '';
+    let procesando = false;
+    let exportando = false;
+    let temporizadorEstado = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    /* ====================================================================
+       UTILIDADES DE TEXTO Y SEGURIDAD
+       ==================================================================== */
+    const MAPA_ESCAPE = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+    function esc(valor) {
+      return String(valor).replace(/[&<>"']/g, (c) => MAPA_ESCAPE[c]);
+    }
+
+    /** Devuelve siempre un texto con valor, o "No registrado". */
+    function texto(valor) {
+      if (valor === null || valor === undefined) return NO_REGISTRADO;
+      const limpio = String(valor).replace(/\s+/g, ' ').trim();
+      if (!limpio) return NO_REGISTRADO;
+      if (/^(null|undefined|n\/?a|s\/?d|s\/?n|sin dato(s)?|sin informaci[oó]n|no registrado|-+|\.+)$/i.test(limpio)) {
+        return NO_REGISTRADO;
+      }
+      return limpio;
+    }
+
+    function esVacio(valor) {
+      return texto(valor) === NO_REGISTRADO;
+    }
+
+    /** HTML seguro: los vacíos se muestran como etiqueta discreta, nunca en blanco. */
+    function htmlValor(valor) {
+      const limpio = texto(valor);
+      if (limpio === NO_REGISTRADO) return '<span class="dato-vacio">No registrado</span>';
+      return esc(limpio);
+    }
+
+    function pintarDato(elemento, valor) {
+      if (!elemento) return;
+      elemento.innerHTML = htmlValor(valor);
+    }
+
+    function normalizarBusqueda(valor) {
+      if (valor === null || valor === undefined) return '';
+      const limpio = String(valor).trim();
+      if (!limpio) return '';
+
+      return limpio
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    }
+
+    /* ====================================================================
+       FECHAS
+       ==================================================================== */
+    const patronISO = /^(\d{4})-(\d{2})-(\d{2})/;
+    const patronLatino = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/;
+
+    function fechaUTC(anio, mes, dia) {
+      const y = Number(anio);
+      const m = Number(mes);
+      const d = Number(dia);
+      if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+      const fecha = new Date(Date.UTC(y, m - 1, d));
+      if (fecha.getUTCFullYear() !== y || fecha.getUTCMonth() !== m - 1 || fecha.getUTCDate() !== d) return null;
+      return fecha;
+    }
+
+    function parseFecha(valor) {
+      const limpio = texto(valor);
+      if (limpio === NO_REGISTRADO) return null;
+
+      let coincidencia = limpio.match(patronISO);
+      if (coincidencia) return fechaUTC(coincidencia[1], coincidencia[2], coincidencia[3]);
+
+      coincidencia = limpio.match(patronLatino);
+      if (coincidencia) {
+        let anio = Number(coincidencia[3]);
+        if (anio < 100) anio += anio > 69 ? 1900 : 2000;
+        return fechaUTC(anio, coincidencia[2], coincidencia[1]);
+      }
+
+      const alternativa = new Date(limpio);
+      return Number.isNaN(alternativa.getTime()) ? null : alternativa;
+    }
+
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    function formatearFecha(valor) {
+      const limpio = texto(valor);
+      if (limpio === NO_REGISTRADO) return NO_REGISTRADO;
+
+      const fecha = parseFecha(limpio);
+      if (!fecha) return limpio;
+
+      return `${pad(fecha.getUTCDate())}/${pad(fecha.getUTCMonth() + 1)}/${fecha.getUTCFullYear()}`;
+    }
+
+    function fechaHoraActual() {
+      const ahora = new Date();
+      return `${pad(ahora.getDate())}/${pad(ahora.getMonth() + 1)}/${ahora.getFullYear()} ${pad(ahora.getHours())}:${pad(ahora.getMinutes())}`;
+    }
+
+    function compararAtenciones(a, b) {
+      const fechaA = parseFecha(a.fecha_ingreso);
+      const fechaB = parseFecha(b.fecha_ingreso);
+
+      if (fechaA && fechaB && fechaA.getTime() !== fechaB.getTime()) {
+        return fechaB.getTime() - fechaA.getTime();
+      }
+      if (fechaA && !fechaB) return -1;
+      if (!fechaA && fechaB) return 1;
+      return (b.id || 0) - (a.id || 0);
+    }
+
+    /* ====================================================================
+       AGRUPACIÓN DE PACIENTES
+       ==================================================================== */
+    function normalizarDocumentoClave(valor) {
+      const limpio = texto(valor);
+      if (limpio === NO_REGISTRADO) return '';
+      const compacto = limpio.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      return compacto.length >= 3 ? compacto : '';
+    }
+
+    function normalizarNombreClave(valor) {
+      const limpio = texto(valor);
+      if (limpio === NO_REGISTRADO) return '';
+      return limpio
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    /** Firma del nombre insensible al orden: "RAMIREZ MATEO ALEJANDRO TORRES" */
+    function firmaNombre(valor) {
+      return normalizarNombreClave(valor)
+        .split(' ')
+        .filter((token) => token.length > 1)
+        .sort()
+        .join(' ');
+    }
+
+    /**
+     * Dos nombres son compatibles si comparten al menos el 60 % de sus palabras.
+     * Permite unir "Cárdenas" con "Cardenas" o un nombre con una palabra omitida,
+     * pero evita unir pacientes distintos que comparten un número de HC genérico.
+     */
+    function nombresCompatibles(a, b) {
+      const firmaA = firmaNombre(a);
+      const firmaB = firmaNombre(b);
+
+      if (!firmaA || !firmaB) return true;
+
+      const tokensA = firmaA.split(' ');
+      const tokensB = new Set(firmaB.split(' '));
+      const comunes = tokensA.filter((token) => tokensB.has(token)).length;
+
+      return comunes / Math.max(tokensA.length, tokensB.size) >= 0.6;
+    }
+
+    function normalizarRegistro(fila) {
+      const registro = {
+        id: Number(fila.id) || 0,
+        creado_en: fila.creado_en || null,
+        clave_paciente: fila.clave_paciente || ''
+      };
+
+      for (const campo of CAMPOS_CLINICOS) {
+        registro[campo] = texto(fila[campo]);
+      }
+
+      return registro;
+    }
+
+    function primerValor(atenciones, campo) {
+      for (const atencion of atenciones) {
+        if (!esVacio(atencion[campo])) return atencion[campo];
+      }
+      return NO_REGISTRADO;
+    }
+
+    function agruparPacientes(filas) {
+      const registros = filas.map(normalizarRegistro);
+      if (!registros.length) return [];
+
+      // Union-Find: agrupa registros que pertenecen al mismo paciente.
+      const padre = registros.map((_, indice) => indice);
+
+      function encontrar(indice) {
+        let raiz = indice;
+        while (padre[raiz] !== raiz) raiz = padre[raiz];
+        while (padre[indice] !== indice) {
+          const siguiente = padre[indice];
+          padre[indice] = raiz;
+          indice = siguiente;
+        }
+        return raiz;
+      }
+
+      function unir(a, b) {
+        const raizA = encontrar(a);
+        const raizB = encontrar(b);
+        if (raizA !== raizB) padre[raizB] = raizA;
+      }
+
+      // 1) Mismo nombre (aunque el orden de apellidos cambie): mismo paciente.
+      const porFirmaNombre = new Map();
+      registros.forEach((registro, indice) => {
+        const firma = firmaNombre(registro.nombre);
+        if (!firma) return;
+
+        if (porFirmaNombre.has(firma)) unir(porFirmaNombre.get(firma), indice);
+        else porFirmaNombre.set(firma, indice);
+      });
+
+      // 2) Mismo documento, siempre que los nombres no sean claramente distintos.
+      const porDocumento = new Map();
+      registros.forEach((registro, indice) => {
+        const documento = normalizarDocumentoClave(registro.documento);
+        if (!documento) return;
+
+        if (!porDocumento.has(documento)) {
+          porDocumento.set(documento, []);
+        }
+        porDocumento.get(documento).push(indice);
+      });
+
+      for (const indices of porDocumento.values()) {
+        for (let i = 0; i < indices.length; i += 1) {
+          for (let j = i + 1; j < indices.length; j += 1) {
+            const a = registros[indices[i]];
+            const b = registros[indices[j]];
+            if (nombresCompatibles(a.nombre, b.nombre)) unir(indices[i], indices[j]);
+          }
+        }
+      }
+
+      // 3) Construcción de los expedientes agrupados.
+      const porRaiz = new Map();
+
+      registros.forEach((registro, indice) => {
+        const raiz = encontrar(indice);
+        if (!porRaiz.has(raiz)) porRaiz.set(raiz, []);
+        porRaiz.get(raiz).push(registro);
+      });
+
+      const resultado = [];
+
+      for (const atenciones of porRaiz.values()) {
+        atenciones.sort(compararAtenciones);
+
+        const documentos = [];
+        for (const atencion of atenciones) {
+          if (esVacio(atencion.documento)) continue;
+          if (!documentos.includes(atencion.documento)) documentos.push(atencion.documento);
+        }
+
+        const nombre = primerValor(atenciones, 'nombre');
+        const documentoPrincipal = primerValor(atenciones, 'documento');
+        const firma = firmaNombre(nombre) || 'SIN_NOMBRE';
+        const sufijoDocumento = normalizarDocumentoClave(documentoPrincipal) || 'SIN_DOC';
+
+        resultado.push({
+          clave: `doc:${sufijoDocumento}|nom:${firma}`,
+          atenciones,
+          total: atenciones.length,
+          nombre,
+          documento: documentoPrincipal,
+          documentos,
+          edad: primerValor(atenciones, 'edad'),
+          sexo: primerValor(atenciones, 'sexo'),
+          ultima: atenciones[0]
+        });
+      }
+
+      resultado.sort((a, b) => {
+        const fechaA = parseFecha(a.ultima.fecha_ingreso);
+        const fechaB = parseFecha(b.ultima.fecha_ingreso);
+
+        if (fechaA && fechaB && fechaA.getTime() !== fechaB.getTime()) {
+          return fechaB.getTime() - fechaA.getTime();
+        }
+        if (fechaA && !fechaB) return -1;
+        if (!fechaA && fechaB) return 1;
+        return (b.ultima.id || 0) - (a.ultima.id || 0);
+      });
+
+      return resultado;
+    }
+
+    /* ====================================================================
+       CARGA Y RENDERIZADO DEL DIRECTORIO
+       ==================================================================== */
+    async function cargarPacientes() {
+      try {
+        const respuesta = await fetch(`${API_URL}/pacientes`, {
+          headers: { Accept: 'application/json' }
+        });
+
+        if (!respuesta.ok) throw new Error('El servidor rechazó la solicitud.');
+
+        const datos = await respuesta.json();
+        if (!Array.isArray(datos)) throw new Error('Respuesta inválida del servidor.');
+
+        pacientes = datos;
+        grupos = agruparPacientes(pacientes);
+
+        renderDirectorio();
+        marcarConexion(true);
+      } catch (error) {
+        marcarConexion(false);
+        pacientes = [];
+        grupos = [];
+        renderDirectorio('No se pudo conectar con el servidor. Verifica que el backend esté en ejecución (npm start).');
+        console.error('[FRONTEND] Error cargando pacientes:', error);
+      }
+    }
+
+    function marcarConexion(conectado) {
+      const indicador = $('estadoApi');
+      const etiqueta = $('estadoApiTexto');
+
+      indicador.classList.toggle('conectado', conectado);
+      indicador.classList.toggle('desconectado', !conectado);
+      etiqueta.textContent = conectado ? 'Servidor conectado' : 'Sin conexión';
+    }
+
+    function obtenerIniciales(nombre) {
+      const limpio = texto(nombre);
+      if (limpio === NO_REGISTRADO) return '?';
+
+      const palabras = limpio.split(' ').filter((p) => p.length > 1);
+      if (!palabras.length) return '?';
+      if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase();
+      return (palabras[0][0] + palabras[1][0]).toUpperCase();
+    }
+
+    function renderDirectorio(mensajeVacio) {
+      const tbody = $('tablaCuerpo');
+      const consulta = normalizarBusqueda(filtroActual);
+
+      $('contadorPacientes').textContent = `${grupos.length} ${grupos.length === 1 ? 'paciente' : 'pacientes'}`;
+
+      const visibles = grupos.filter((grupo) => {
+        if (!consulta) return true;
+        return normalizarBusqueda(grupo.nombre).includes(consulta)
+          || normalizarBusqueda(grupo.documento).includes(consulta);
+      });
+
+      if (!visibles.length) {
+        const titulo = mensajeVacio ? 'Sin conexión con el servidor' : (consulta ? 'Sin resultados' : 'Aún no hay pacientes registrados');
+        const detalle = mensajeVacio
+          ? mensajeVacio
+          : (consulta
+            ? 'Prueba con otro nombre o número de documento.'
+            : 'Sube el primer formato clínico para crear un expediente automáticamente.');
+
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="tabla-vacia">
+              <strong>${esc(titulo)}</strong>
+              <span>${esc(detalle)}</span>
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = visibles.map((grupo) => {
+        const indice = grupos.indexOf(grupo);
+        const iniciales = obtenerIniciales(grupo.nombre);
+        const tieneDocumento = !esVacio(grupo.documento);
+
+        const celdaDocumento = tieneDocumento
+          ? `<span class="chip">${esc(grupo.documento)}</span>`
+          : '<span class="chip chip-vacio">Sin documento</span>';
+
+        const claseBadge = grupo.total === 1 ? 'badge badge-una' : 'badge';
+        const etiquetaAtenciones = `${grupo.total} ${grupo.total === 1 ? 'atención' : 'atenciones'}`;
+
+        const datosDemograficos = [];
+        if (!esVacio(grupo.edad)) datosDemograficos.push(grupo.edad);
+        if (!esVacio(grupo.sexo)) datosDemograficos.push(grupo.sexo);
+
+        const metaPaciente = datosDemograficos.length
+          ? datosDemograficos.map((dato) => esc(dato)).join(' · ')
+          : 'Sin datos demográficos';
+
+        return `
+          <tr data-clave="${esc(grupo.clave)}">
+            <td>
+              <div class="paciente">
+                <div class="avatar" aria-hidden="true">${esc(iniciales)}</div>
+                <div class="paciente-info">
+                  <span class="paciente-nombre">${htmlValor(grupo.nombre)}</span>
+                  <span class="paciente-meta">${metaPaciente}</span>
+                </div>
+              </div>
+            </td>
+            <td>${celdaDocumento}</td>
+            <td class="fecha-celda">${htmlValor(formatearFecha(grupo.ultima.fecha_ingreso))}</td>
+            <td><span class="${claseBadge}">${esc(etiquetaAtenciones)}</span></td>
+            <td>
+              <div class="acciones-tabla">
+                <button type="button" class="btn-accion btn-timeline" data-accion="historial" data-idx="${indice}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="M12 7v5l3 2"></path>
+                  </svg>
+                  Historial
+                </button>
+                <button type="button" class="btn-accion btn-expediente" data-accion="expediente" data-idx="${indice}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <path d="M14 2v6h6"></path>
+                  </svg>
+                  Expediente
+                </button>
+              </div>
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    function resaltarGrupoPorId(id) {
+      const filas = document.querySelectorAll('#tablaCuerpo tr[data-clave]');
+      const grupo = grupos.find((g) => g.atenciones.some((atencion) => atencion.id === id));
+      if (!grupo) return;
+
+      for (const fila of filas) {
+        if (fila.getAttribute('data-clave') === grupo.clave) {
+          fila.classList.add('fila-nueva');
+          fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          break;
+        }
+      }
+    }
+
+    /* ====================================================================
+       TIMELINE
+       ==================================================================== */
+    function filaDetalle(etiqueta, valor) {
+      return `
+        <div class="detalle-fila">
+          <dt>${esc(etiqueta)}</dt>
+          <dd>${htmlValor(valor)}</dd>
+        </div>`;
+    }
+
+    function abrirHistorial(indice) {
+      const grupo = grupos[indice];
+      if (!grupo) return;
+
+      pintarDato($('timelineNombre'), grupo.nombre);
+      $('timelineSubtitulo').textContent = 'Registro cronológico de atenciones';
+
+      $('timelineFichas').innerHTML = `
+        <span class="ficha">Documento: <strong>${grupo.documentos.length > 1
+          ? grupo.documentos.map((documento) => htmlValor(documento)).join(' / ')
+          : htmlValor(grupo.documento)}</strong></span>
+        <span class="ficha">Edad: <strong>${htmlValor(grupo.edad)}</strong></span>
+        <span class="ficha">Sexo: <strong>${htmlValor(grupo.sexo)}</strong></span>
+        <span class="ficha">Atenciones: <strong>${grupo.total}</strong></span>`;
+
+      $('timelineContenedor').innerHTML = grupo.atenciones.map((atencion, i) => {
+        const numero = grupo.total - i;
+
+        return `
+          <article class="tl-item">
+            <span class="tl-marcador" aria-hidden="true"></span>
+            <div class="tl-contenido">
+              <div class="tl-cabecera">
+                <span class="tl-fecha">${htmlValor(formatearFecha(atencion.fecha_ingreso))}</span>
+                <span class="tl-numero">Atención N.° ${numero}</span>
+                <span class="tl-medico">${htmlValor(atencion.medico)}</span>
+              </div>
+              <p class="tl-diagnostico">${htmlValor(atencion.diagnostico)}</p>
+              <p class="tl-motivo"><span class="tl-etiqueta">Motivo</span>${htmlValor(atencion.motivo_consulta)}</p>
+              <details class="tl-detalle">
+                <summary>Ver detalle clínico</summary>
+                <dl class="detalle-lista">
+                  ${filaDetalle('Documento', atencion.documento)}
+                  ${filaDetalle('Enfermedad actual', atencion.enfermedad_actual)}
+                  ${filaDetalle('Signos vitales', atencion.signos_vitales)}
+                  ${filaDetalle('Diagnóstico', atencion.diagnostico)}
+                  ${filaDetalle('Plan / tratamiento', atencion.plan_tratamiento)}
+                  ${filaDetalle('Médico', atencion.medico)}
+                </dl>
+              </details>
+            </div>
+          </article>`;
+      }).join('');
+
+      abrirModal('modalHistorial');
+    }
+
+    /* ====================================================================
+       EXPEDIENTE Y PDF
+       ==================================================================== */
+    function campoPDF(etiqueta, valor) {
+      return `
+        <div class="pdf-campo">
+          <span class="pdf-campo-etiqueta">${esc(etiqueta)}</span>
+          <span class="pdf-campo-valor">${htmlValor(valor)}</span>
+        </div>`;
+    }
+
+    function cajaResumen(etiqueta, valor) {
+      return `
+        <div class="pdf-resumen-caja">
+          <p class="pdf-resumen-label">${esc(etiqueta)}</p>
+          <p class="pdf-resumen-valor">${htmlValor(valor)}</p>
+        </div>`;
+    }
+
+    function abrirReporte(indice) {
+      const grupo = grupos[indice];
+      if (!grupo) return;
+
+      grupoActual = grupo;
+
+      const codigo = esVacio(grupo.documento)
+        ? `EXP-${String(grupo.ultima.id || 0).padStart(5, '0')}`
+        : (/[A-Za-z]/.test(grupo.documento) ? grupo.documento : `HC-${grupo.documento}`);
+
+      $('reporteBarraNombre').textContent = `Expediente de ${texto(grupo.nombre)}`;
+      $('reporteBarraMeta').textContent = `${grupo.total} ${grupo.total === 1 ? 'atención registrada' : 'atenciones registradas'}`;
+      $('pdfCodigo').textContent = codigo;
+
+      pintarDato($('pdfNombre'), grupo.nombre);
+      pintarDato($('pdfDni'), grupo.documentos.length > 1 ? grupo.documentos.join(' / ') : grupo.documento);
+      pintarDato($('pdfEdad'), grupo.edad);
+      pintarDato($('pdfSexo'), grupo.sexo);
+
+      const cronologicas = [...grupo.atenciones].reverse();
+      const primera = cronologicas[0];
+      const ultima = cronologicas[cronologicas.length - 1];
+
+      $('pdfResumen').innerHTML = [
+        cajaResumen('Total de atenciones', String(grupo.total)),
+        cajaResumen('Primera atención', formatearFecha(primera.fecha_ingreso)),
+        cajaResumen('Última atención', formatearFecha(ultima.fecha_ingreso))
+      ].join('');
+
+      $('pdfVisitasContenedor').innerHTML = cronologicas.map((atencion, i) => {
+        const documentoAtencion = grupo.documentos.length > 1
+          ? ` · Doc: ${esc(atencion.documento)}`
+          : '';
+
+        return `
+        <div class="pdf-visita">
+          <div class="pdf-visita-cabecera">
+            <span class="pdf-visita-titulo">ATENCIÓN N.° ${i + 1}</span>
+            <span class="pdf-visita-meta">Fecha: ${esc(formatearFecha(atencion.fecha_ingreso))} · Médico: ${esc(texto(atencion.medico))}${documentoAtencion}</span>
+          </div>
+          <div class="pdf-campos">
+            ${campoPDF('Motivo de consulta', atencion.motivo_consulta)}
+            ${campoPDF('Enfermedad actual', atencion.enfermedad_actual)}
+            ${campoPDF('Signos vitales', atencion.signos_vitales)}
+            ${campoPDF('Diagnóstico', atencion.diagnostico)}
+            ${campoPDF('Plan de trabajo', atencion.plan_tratamiento)}
+          </div>
+        </div>`;
+      }).join('');
+
+      pintarDato($('pdfMedicoFirma'), ultima.medico);
+
+      $('pdfPieEmision').textContent =
+        `Generado el ${fechaHoraActual()} · ${grupo.total} ${grupo.total === 1 ? 'atención' : 'atenciones'}`;
+
+      $('avisoReporte').textContent = '';
+      abrirModal('modalReporte');
+    }
+
+    function nombreArchivoSeguro(grupo) {
+      const base = texto(grupo.nombre) === NO_REGISTRADO
+        ? 'Paciente_sin_nombre'
+        : (texto(grupo.nombre)
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^A-Za-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 48) || 'Paciente');
+
+      const documento = esVacio(grupo.documento) ? '' : `_${grupo.documento.replace(/[^A-Za-z0-9]/g, '')}`;
+      const hoy = new Date();
+      const marca = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`;
+
+      return `Expediente_${base}${documento}_${marca}.pdf`;
+    }
+
+    async function exportarPDF() {
+      if (!grupoActual || exportando) return;
+
+      if (typeof html2pdf === 'undefined') {
+        $('avisoReporte').textContent = 'No se pudo cargar el generador de PDF. Revisa tu conexión.';
+        return;
+      }
+
+      const boton = $('btnExportar');
+      const etiqueta = $('btnExportarTexto');
+      const original = $('documentoImprimible');
+
+      exportando = true;
+      boton.disabled = true;
+      etiqueta.textContent = 'Generando PDF…';
+      $('avisoReporte').textContent = '';
+
+      // Clonamos la hoja en un contenedor fijo para que el PDF no dependa
+      // del scroll del modal ni de su altura máxima.
+      const clon = original.cloneNode(true);
+      clon.querySelectorAll('[id]').forEach((nodo) => nodo.removeAttribute('id'));
+
+      const contenedor = document.createElement('div');
+      contenedor.className = 'pdf-holder';
+      contenedor.appendChild(clon);
+      document.body.appendChild(contenedor);
+
+      const opciones = {
+        margin: [10, 8, 12, 8],
+        filename: nombreArchivoSeguro(grupoActual),
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          letterRendering: true,
+          logging: false,
+          scrollX: 0,
+          scrollY: 0
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+        pagebreak: { mode: ['css', 'legacy'], avoid: ['.pdf-visita', '.pdf-firma', '.pdf-validacion'] }
+      };
+
+      try {
+        await html2pdf().set(opciones).from(clon).save();
+      } catch (error) {
+        console.error('[PDF] Error al exportar:', error);
+        $('avisoReporte').textContent = 'No se pudo generar el PDF. Intenta nuevamente.';
+      } finally {
+        contenedor.remove();
+        exportando = false;
+        boton.disabled = false;
+        etiqueta.textContent = 'Exportar PDF';
+      }
+    }
+
+    /* ====================================================================
+       MODALES
+       ==================================================================== */
+    function abrirModal(id) {
+      const modal = $(id);
+      if (!modal) return;
+      modal.classList.add('abierto');
+      document.body.classList.add('sin-scroll');
+
+      const primerBoton = modal.querySelector('button[data-cerrar]');
+      if (primerBoton) primerBoton.focus({ preventScroll: true });
+    }
+
+    function cerrarModal(id) {
+      const modal = $(id);
+      if (!modal) return;
+
+      modal.classList.remove('abierto');
+
+      const abiertos = document.querySelectorAll('.modal.abierto');
+      if (!abiertos.length) document.body.classList.remove('sin-scroll');
+    }
+
+    /* ====================================================================
+       CARGA DE DOCUMENTOS
+       ==================================================================== */
+    function mostrarEstado(tipo, mensaje) {
+      const alerta = $('estado');
+
+      clearTimeout(temporizadorEstado);
+
+      if (!tipo || !mensaje) {
+        alerta.className = 'alerta';
+        alerta.textContent = '';
+        return;
+      }
+
+      alerta.className = `alerta alerta-${tipo} visible`;
+      alerta.textContent = mensaje;
+
+      // Los errores permanecen visibles; los éxitos se ocultan solos.
+      if (tipo !== 'error') {
+        temporizadorEstado = setTimeout(() => {
+          alerta.classList.remove('visible');
+          alerta.textContent = '';
+        }, 9000);
+      }
+    }
+
+    function formatearPeso(bytes) {
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function extensionArchivo(nombre) {
+      const partes = String(nombre || '').split('.');
+      return partes.length > 1 ? partes.pop().toLowerCase() : '';
+    }
+
+    function archivoPermitido(archivo) {
+      const tipos = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      const extensiones = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+      return tipos.includes(archivo.type) || extensiones.includes(extensionArchivo(archivo.name));
+    }
+
+    function seleccionarArchivo(archivo) {
+      if (!archivo) return;
+
+      if (!archivoPermitido(archivo)) {
+        mostrarEstado('error', 'Formato no soportado. Sube un archivo PDF, JPG, PNG o WEBP.');
+        return;
+      }
+
+      if (archivo.size > TAMANO_MAXIMO) {
+        mostrarEstado('error', 'El archivo supera el límite de 25 MB. Comprime el PDF o divide el documento.');
+        return;
+      }
+
+      archivoSeleccionado = archivo;
+
+      $('archivoNombre').textContent = archivo.name;
+      $('archivoTamano').textContent = `${formatearPeso(archivo.size)} · Listo para procesar`;
+      $('archivoChip').hidden = false;
+      $('btnProcesar').disabled = false;
+
+      mostrarEstado('info', 'Documento seleccionado. Pulsa «Procesar documento» para extraer los datos.');
+    }
+
+    function limpiarArchivo() {
+      archivoSeleccionado = null;
+      $('pdfFile').value = '';
+      $('archivoChip').hidden = true;
+      $('btnProcesar').disabled = true;
+      $('archivoNombre').textContent = '';
+      $('archivoTamano').textContent = '';
+    }
+
+    async function procesarDocumento() {
+      if (!archivoSeleccionado || procesando) return;
+
+      procesando = true;
+
+      const boton = $('btnProcesar');
+      const etiquetaBoton = $('btnProcesarTexto');
+      const barra = $('barraProgreso');
+
+      boton.disabled = true;
+      etiquetaBoton.textContent = 'Analizando con IA…';
+      barra.classList.add('activa');
+      $('notaFormatos').textContent = 'La IA está leyendo el documento. Esto puede tardar hasta 40 segundos.';
+      mostrarEstado('info', 'Extrayendo datos clínicos del documento…');
+
+      const formulario = new FormData();
+      formulario.append('pdf', archivoSeleccionado, archivoSeleccionado.name);
+
+      try {
+        const respuesta = await fetch(`${API_URL}/upload`, {
+          method: 'POST',
+          body: formulario
+        });
+
+        let cuerpo = null;
+        try {
+          cuerpo = await respuesta.json();
+        } catch (error) {
+          cuerpo = null;
+        }
+
+        if (!respuesta.ok) {
+          const mensaje = cuerpo && cuerpo.error
+            ? cuerpo.error
+            : `No se pudo procesar el documento (código ${respuesta.status}).`;
+
+          if (cuerpo && cuerpo.codigo === 'DOCUMENTO_ILEGIBLE') {
+            throw new Error(`${mensaje} Sugerencia: escanea a 300 dpi, en posición vertical y con buena iluminación.`);
+          }
+          throw new Error(mensaje);
+        }
+
+        const paciente = cuerpo && cuerpo.paciente ? cuerpo.paciente : null;
+        const nombre = paciente ? texto(paciente.nombre) : 'Paciente';
+        const sinDatos = cuerpo && Array.isArray(cuerpo.campos_no_registrados)
+          ? cuerpo.campos_no_registrados.length
+          : 0;
+
+        let mensaje = `Documento procesado. ${nombre} se agregó al directorio.`;
+        if (sinDatos > 0) {
+          mensaje += ` ${sinDatos} ${sinDatos === 1 ? 'campo quedó' : 'campos quedaron'} como «No registrado».`;
+        }
+
+        mostrarEstado('exito', mensaje);
+        limpiarArchivo();
+
+        // Limpia el buscador para que el nuevo paciente quede visible.
+        filtroActual = '';
+        $('buscador').value = '';
+
+        await cargarPacientes();
+
+        if (cuerpo && cuerpo.id) resaltarGrupoPorId(Number(cuerpo.id));
+      } catch (error) {
+        const mensaje = error instanceof TypeError
+          ? 'No se pudo conectar con el servidor. Verifica que el backend esté en ejecución.'
+          : error.message;
+        mostrarEstado('error', mensaje);
+      } finally {
+        procesando = false;
+        boton.disabled = !archivoSeleccionado;
+        etiquetaBoton.textContent = 'Procesar documento';
+        barra.classList.remove('activa');
+        $('notaFormatos').textContent = 'Formatos MINSA y EsSalud · Una atención por archivo';
+      }
+    }
+
+    /* ====================================================================
+       EVENTOS
+       ==================================================================== */
+    const zonaCarga = $('zonaCarga');
+    const inputArchivo = $('pdfFile');
+
+    zonaCarga.addEventListener('click', () => inputArchivo.click());
+
+    zonaCarga.addEventListener('keydown', (evento) => {
+      if (evento.key === 'Enter' || evento.key === ' ') {
+        evento.preventDefault();
+        inputArchivo.click();
+      }
+    });
+
+    inputArchivo.addEventListener('change', () => {
+      const archivo = inputArchivo.files && inputArchivo.files[0];
+      if (archivo) seleccionarArchivo(archivo);
+    });
+
+    ['dragenter', 'dragover'].forEach((evento) => {
+      zonaCarga.addEventListener(evento, (e) => {
+        e.preventDefault();
+        zonaCarga.classList.add('arrastrando');
+      });
+    });
+
+    ['dragleave', 'dragend'].forEach((evento) => {
+      zonaCarga.addEventListener(evento, () => zonaCarga.classList.remove('arrastrando'));
+    });
+
+    zonaCarga.addEventListener('drop', (evento) => {
+      evento.preventDefault();
+      zonaCarga.classList.remove('arrastrando');
+
+      const archivo = evento.dataTransfer && evento.dataTransfer.files
+        ? evento.dataTransfer.files[0]
+        : null;
+
+      if (archivo) seleccionarArchivo(archivo);
+    });
+
+    // Evita que el navegador abra el archivo si se suelta fuera de la zona
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => e.preventDefault());
+
+    $('btnQuitarArchivo').addEventListener('click', () => {
+      limpiarArchivo();
+      mostrarEstado(null, null);
+    });
+
+    $('btnProcesar').addEventListener('click', procesarDocumento);
+
+    $('buscador').addEventListener('input', (evento) => {
+      filtroActual = evento.target.value;
+      renderDirectorio();
+    });
+
+    $('tablaCuerpo').addEventListener('click', (evento) => {
+      const boton = evento.target.closest('button[data-accion]');
+      if (!boton) return;
+
+      const indice = Number(boton.dataset.idx);
+
+      if (boton.dataset.accion === 'historial') abrirHistorial(indice);
+      if (boton.dataset.accion === 'expediente') abrirReporte(indice);
+    });
+
+    document.querySelectorAll('[data-cerrar]').forEach((boton) => {
+      boton.addEventListener('click', () => cerrarModal(boton.dataset.cerrar));
+    });
+
+    document.querySelectorAll('.modal').forEach((modal) => {
+      modal.addEventListener('click', (evento) => {
+        if (evento.target === modal) cerrarModal(modal.id);
+      });
+    });
+
+    document.addEventListener('keydown', (evento) => {
+      if (evento.key !== 'Escape') return;
+
+      document.querySelectorAll('.modal.abierto').forEach((modal) => {
+        modal.classList.remove('abierto');
+      });
+      document.body.classList.remove('sin-scroll');
+    });
+
+    $('btnExportar').addEventListener('click', exportarPDF);
+
+    /* ====================================================================
+       INICIO
+       ==================================================================== */
+    renderDirectorio();
+    cargarPacientes();
+  </script>
+</body>
+</html>
